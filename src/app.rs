@@ -10,7 +10,7 @@ use ratatui::{
 
 use crate::{
     core::{
-        config::Config,
+        config::{Config, VReaderRole},
         hooks::AppHooks,
         library::feedlibrary::FeedLibrary,
         ui::{
@@ -21,6 +21,14 @@ use crate::{
     },
     ui::screens::{mainscreen::MainScreen, welcomedialog::WelcomeDialog},
 };
+
+fn role_badge(role: &VReaderRole) -> &'static str {
+    match role {
+        VReaderRole::Operator => "\u{f023} operator",   // 🔒
+        VReaderRole::Parent => "\u{f007} parent",       // 👤
+        VReaderRole::Kid => "\u{f118} kid",             // 👶
+    }
+}
 
 pub enum AppWorkStatus {
     None,
@@ -55,6 +63,7 @@ fn interpolate_color(fg: u32, bg: u32, t: f32) -> Color {
 
 pub struct App {
     running: bool,
+    role: VReaderRole,
     library: Rc<RefCell<FeedLibrary>>,
     hooks: Rc<AppHooks>,
     current_state: Option<Box<dyn AppScreen>>,
@@ -67,6 +76,7 @@ pub struct App {
 impl App {
     pub fn new(config: &Config) -> Self {
         Self {
+            role: config.role.clone(),
             library: Rc::new(RefCell::new(FeedLibrary::new(&config.datapath))),
             hooks: Rc::new(config.hooks.clone().unwrap_or_default()),
 
@@ -88,6 +98,7 @@ impl App {
         self.init(Box::new(MainScreen::new(
             self.library.clone(),
             self.hooks.clone(),
+            self.role.clone(),
         )));
 
         if self.library.borrow().is_empty() {
@@ -148,7 +159,7 @@ impl App {
                     .margin(1)
                     .split(mainlayout[1]);
 
-                    let status_text = Paragraph::new(format!("\u{f0fb1} bulletty | {title}"))
+                    let status_text = Paragraph::new(format!("{} | {title}", role_badge(&self.role)))
                         .style(Style::default().fg(Color::from_u32(theme.base[0x6])));
 
                     frame.render_widget(status_text, statusline[0]);

@@ -12,6 +12,7 @@ use tracing::error;
 use crate::{
     app::AppWorkStatus,
     core::{
+        config::VReaderRole,
         feed::feedentry::FeedEntry,
         hooks::AppHooks,
         library::feedlibrary::FeedLibrary,
@@ -39,6 +40,7 @@ enum MainInputState {
 }
 
 pub struct MainScreen {
+    role: VReaderRole,
     library: Rc<RefCell<FeedLibrary>>,
     feedtreestate: FeedTreeState,
     feedentrystate: FeedEntryState,
@@ -47,8 +49,9 @@ pub struct MainScreen {
 }
 
 impl MainScreen {
-    pub fn new(library: Rc<RefCell<FeedLibrary>>, hooks: Rc<AppHooks>) -> Self {
+    pub fn new(library: Rc<RefCell<FeedLibrary>>, hooks: Rc<AppHooks>, role: VReaderRole) -> Self {
         Self {
+            role,
             library,
             feedtreestate: FeedTreeState::new(),
             feedentrystate: FeedEntryState::new(),
@@ -165,7 +168,10 @@ impl MainScreen {
 
 impl AppScreen for MainScreen {
     fn start(&mut self) {
-        self.library.borrow_mut().start_updater();
+        // Kids mode: no network updater
+        if self.role != VReaderRole::Kid {
+            self.library.borrow_mut().start_updater();
+        }
     }
 
     fn quit(&mut self) {}
@@ -175,7 +181,9 @@ impl AppScreen for MainScreen {
     fn unpause(&mut self) {}
 
     fn render(&mut self, frame: &mut ratatui::Frame, area: Rect) {
-        self.library.borrow_mut().update();
+        if self.role != VReaderRole::Kid {
+            self.library.borrow_mut().update();
+        }
 
         let theme = {
             let library = self.library.borrow();
@@ -441,53 +449,99 @@ impl AppScreen for MainScreen {
     }
 
     fn get_title(&self) -> String {
-        String::from("Main")
+        let badge = match self.role {
+            VReaderRole::Operator => "\u{f023}",
+            VReaderRole::Parent => "\u{f007}",
+            VReaderRole::Kid => "\u{f118}",
+        };
+        format!("{badge} Main")
     }
 
     fn get_instructions(&self) -> String {
-        if self.inputstate == MainInputState::Menu {
-            String::from(
-                "?: Help | j/k/↓/↑: move | n/p: next/prev category | Enter: select | Esc: quit",
-            )
-        } else {
-            String::from(
-                "?: Help | j/k/↓/↑: move | o: open | L: add/remove read later | Enter: read | Esc: back",
-            )
+        match self.role {
+            VReaderRole::Kid => {
+                if self.inputstate == MainInputState::Menu {
+                    String::from("?: Help | j/k/↓/↑: move | n/p: category | Enter: select | Esc: quit")
+                } else {
+                    String::from("?: Help | j/k/↓/↑: move | Enter: read | Esc: back")
+                }
+            }
+            _ => {
+                if self.inputstate == MainInputState::Menu {
+                    String::from(
+                        "?: Help | j/k/↓/↑: move | n/p: next/prev category | Enter: select | Esc: quit",
+                    )
+                } else {
+                    String::from(
+                        "?: Help | j/k/↓/↑: move | o: open | L: add/remove read later | Enter: read | Esc: back",
+                    )
+                }
+            }
         }
     }
 
     fn get_work_status(&self) -> AppWorkStatus {
+        if self.role == VReaderRole::Kid {
+            return AppWorkStatus::None;
+        }
         self.library.borrow().get_update_status()
     }
 
     fn get_full_instructions(&self) -> ScreenInstructions {
-        ScreenInstructions::new(vec![
-            InstructionCategory::new(
-                "Navigation",
-                vec![
-                    InstructionDetail::new("j/k/↓/↑", "move selection"),
-                    InstructionDetail::new("n/p", "next/previous category"),
-                    InstructionDetail::new("g/G/Home/End", "beginning and end of list"),
-                ],
-            ),
-            InstructionCategory::new(
-                "Actions",
-                vec![
-                    InstructionDetail::new("o", "open link externally"),
-                    InstructionDetail::new("L", "add/remove read later"),
-                    InstructionDetail::new("Enter", "select category or read entry"),
-                    InstructionDetail::new("r", "toggle item read state"),
-                    InstructionDetail::new("R", "mark all items as read"),
-                ],
-            ),
-            InstructionCategory::new(
-                "App",
-                vec![
-                    InstructionDetail::new("</>", "change feed column width"),
-                    InstructionDetail::new("t", "open theme picker"),
-                    InstructionDetail::new("Esc/q", "back from entries or quit"),
-                ],
-            ),
-        ])
+        match self.role {
+            VReaderRole::Kid => ScreenInstructions::new(vec![
+                InstructionCategory::new(
+                    "Navigation",
+                    vec![
+                        InstructionDetail::new("j/k/↓/↑", "move selection"),
+                        InstructionDetail::new("n/p", "next/previous category"),
+                        InstructionDetail::new("g/G/Home/End", "beginning and end of list"),
+                    ],
+                ),
+                InstructionCategory::new(
+                    "Actions",
+                    vec![
+                        InstructionDetail::new("Enter", "select category or read entry"),
+                        InstructionDetail::new("r", "toggle item read state"),
+                        InstructionDetail::new("R", "mark all items as read"),
+                    ],
+                ),
+                InstructionCategory::new(
+                    "App",
+                    vec![
+                        InstructionDetail::new("</>", "change feed column width"),
+                        InstructionDetail::new("Esc/q", "back from entries or quit"),
+                    ],
+                ),
+            ]),
+            _ => ScreenInstructions::new(vec![
+                InstructionCategory::new(
+                    "Navigation",
+                    vec![
+                        InstructionDetail::new("j/k/↓/↑", "move selection"),
+                        InstructionDetail::new("n/p", "next/previous category"),
+                        InstructionDetail::new("g/G/Home/End", "beginning and end of list"),
+                    ],
+                ),
+                InstructionCategory::new(
+                    "Actions",
+                    vec![
+                        InstructionDetail::new("o", "open link externally"),
+                        InstructionDetail::new("L", "add/remove read later"),
+                        InstructionDetail::new("Enter", "select category or read entry"),
+                        InstructionDetail::new("r", "toggle item read state"),
+                        InstructionDetail::new("R", "mark all items as read"),
+                    ],
+                ),
+                InstructionCategory::new(
+                    "App",
+                    vec![
+                        InstructionDetail::new("</>", "change feed column width"),
+                        InstructionDetail::new("t", "open theme picker"),
+                        InstructionDetail::new("Esc/q", "back from entries or quit"),
+                    ],
+                ),
+            ]),
+        }
     }
 }

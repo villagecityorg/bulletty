@@ -23,7 +23,7 @@ use crate::core::{
 };
 use crate::ui::screens::themedialog::ThemeDialog;
 use crate::ui::screens::urldialog::UrlDialog;
-use crate::ui::tools::tuimarkdown;
+use crate::ui::tools::{styles_ext, tuimarkdown};
 
 use super::helpdialog::HelpDialog;
 
@@ -177,10 +177,12 @@ impl AppScreen for ReaderScreen {
         let current_entry = &self.entries[self.current_index];
 
         // Title
+        let title_style = styles_ext::gradient_style(theme.base[0x8], theme.base[0x0], 0.4);
         let title = Paragraph::new(current_entry.title.as_str())
-            .style(Style::new().fg(Color::from_u32(theme.base[0x8])))
+            .style(title_style)
             .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true });
+            .wrap(Wrap { trim: true })
+            .block(styles_ext::styled_block("Article", &theme));
 
         frame.render_widget(title, contentlayout[0]);
 

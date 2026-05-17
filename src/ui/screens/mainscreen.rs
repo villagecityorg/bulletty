@@ -231,7 +231,7 @@ impl AppScreen for MainScreen {
             )
         };
 
-        let treelist = List::new(self.feedtreestate.get_items())
+        let treelist = List::new(self.feedtreestate.get_items(Some(&theme)))
             .block(treestyle)
             .highlight_style(treeselectionstyle);
 

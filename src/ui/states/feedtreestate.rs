@@ -1,6 +1,13 @@
 use std::collections::HashMap;
 
-use ratatui::widgets::{ListItem, ListState};
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{ListItem, ListState},
+};
+
+use crate::core::library::settings::theme::Theme;
+use crate::ui::tools::styles_ext;
 
 use crate::core::library::feedlibrary::FeedLibrary;
 
@@ -79,35 +86,45 @@ impl FeedTreeState {
         }
     }
 
-    pub fn get_items(&self) -> Vec<ListItem<'_>> {
+    pub fn get_items(&self, theme: Option<&Theme>) -> Vec<ListItem<'_>> {
         self.treeitems
             .iter()
             .map(|item| {
-                let title = match item {
-                    FeedItemInfo::Category(t) => format!(" ◎ {t}"),
+                let (text, style) = match item {
+                    FeedItemInfo::Category(t) => {
+                        let accent = theme.map(|th| styles_ext::category_accent(t, th));
+                        let fg = accent.unwrap_or(Color::from_u32(0x888888));
+                        (format!(" ◎ {t}"), Style::new().fg(fg).add_modifier(Modifier::BOLD))
+                    }
                     FeedItemInfo::Item(t, c, s) => {
                         let unread = self
                             .unread_counts
                             .get(&(c.clone(), s.clone()))
                             .copied()
                             .unwrap_or(0);
-                        if unread > 0 {
+                        let accent = theme.map(|th| styles_ext::category_accent(c, th));
+                        let fg = accent.unwrap_or(Color::from_u32(0xcccccc));
+                        let text = if unread > 0 {
                             format!(" \u{1F4E1}  {t} ({unread})")
                         } else {
                             format!(" \u{1F4E1}  {t}")
-                        }
+                        };
+                        (text, Style::new().fg(fg))
                     }
-                    FeedItemInfo::Separator => "".to_string(),
+                    FeedItemInfo::Separator => {
+                        ("".to_string(), Style::new())
+                    }
                     FeedItemInfo::ReadLater => {
-                        if self.read_later_count > 0 {
+                        let text = if self.read_later_count > 0 {
                             format!("\u{1F516} Read Later ({})", self.read_later_count)
                         } else {
                             "\u{1F516} Read Later".to_string()
-                        }
+                        };
+                        (text, Style::new().fg(Color::from_u32(0xcccccc)))
                     }
                 };
 
-                ListItem::new(title.clone())
+                ListItem::new(Text::from(Line::from(Span::styled(text, style))))
             })
             .collect()
     }

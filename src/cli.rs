@@ -94,6 +94,11 @@ pub enum Commands {
         #[arg(long)]
         name: Option<String>,
     },
+    /// Manage parent-level feed settings via the API server
+    Feed {
+        #[command(subcommand)]
+        cmd: FeedCommands,
+    },
     /// Onboard this VReader as a vchat.email agent
     VChatOnboard {
         /// Agent template: reader, researcher, auditor, secretary
@@ -166,6 +171,19 @@ pub enum DirsCommands {
     LocalConfig,
 }
 
+#[derive(Subcommand, Clone)]
+pub enum FeedCommands {
+    /// Mark a feed as kid-safe or not via the API server
+    KidSafe {
+        /// The feed ID from the server
+        #[arg(long)]
+        id: String,
+        /// Whether this feed is safe for kids
+        #[arg(long)]
+        kid_safe: bool,
+    },
+}
+
 pub fn run_main_cli(
     cli: Cli,
     dirs: &Directories,
@@ -190,6 +208,9 @@ pub fn run_main_cli(
         Some(Commands::User { cmd }) => command_user(cmd, config),
         Some(Commands::Sync { push, pull, url, api_key }) => {
             command_sync(*push, *pull, url.as_deref(), api_key.as_deref(), config, &config.datapath)
+        }
+        Some(Commands::Feed { cmd }) => {
+            command_feed(cmd, config)
         }
         Some(Commands::Register { code, server, name }) => {
             command_register(code, server, name.as_deref(), config, config_store)
@@ -459,6 +480,47 @@ fn command_register(
     println!("   or just launch the TUI to auto-sync on startup.");
 
     Ok(())
+}
+
+// ─── Feed commands ─────────────────────────────────────────────────────
+
+fn command_feed(cmd: &FeedCommands, config: &Config) -> color_eyre::Result<()> {
+    match cmd {
+        FeedCommands::KidSafe { id, kid_safe } => {
+            let api_url = config.vreader.as_ref()
+                .and_then(|v| v.api_url.as_deref())
+                .ok_or_else(|| color_eyre::eyre::eyre!("No api_url configured. Run `vreader register` first."))?;
+            let api_key = config.vreader.as_ref()
+                .and_then(|v| v.api_key.as_deref())
+                .ok_or_else(|| color_eyre::eyre::eyre!("No api_key configured. Run `vreader register` first."))?;
+
+            let base = api_url.trim_end_matches('/');
+            let url = format!("{}/v1/feeds/{}/kid-safe", base, id);
+
+            let body = serde_json::json!({"kid_safe": kid_safe});
+            let label = if *kid_safe { "✅ Kid-safe" } else { "❌ Not kid-safe" };
+
+            println!("📡 Toggling feed {} to {}...", id, label);
+
+            let client = reqwest::blocking::Client::new();
+            let resp = client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", api_key))
+                .json(&body)
+                .send()
+                .map_err(|e| color_eyre::eyre::eyre!("API request failed: {}", e))?;
+
+            let status = resp.status();
+            if status.is_success() {
+                println!("  {}", label);
+            } else {
+                let json: serde_json::Value = resp.json().unwrap_or_default();
+                let err = json["error"].as_str().unwrap_or("Unknown error");
+                return Err(color_eyre::eyre::eyre!("Request failed ({}): {}", status.as_u16(), err));
+            }
+            Ok(())
+        }
+    }
 }
 
 // ─── User commands ─────────────────────────────────────────────────────

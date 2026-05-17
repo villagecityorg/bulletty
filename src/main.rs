@@ -94,8 +94,9 @@ pub fn run() -> color_eyre::Result<()> {
             let library = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
             if library.is_empty() {
                 // Prefer api_url for registered users, fall back to master_opml_url
+                let kid_safe_suffix = if config.role == VReaderRole::Kid { "?kid_safe=true" } else { "" };
                 let url = vcc.api_url.as_deref()
-                    .map(|u| format!("{}/v1/opml", u.trim_end_matches('/')))
+                    .map(|u| format!("{}/v1/opml{}", u.trim_end_matches('/'), kid_safe_suffix))
                     .or_else(|| vcc.master_opml_url.clone());
 
                 if let Some(ref opml_url) = url {

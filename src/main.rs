@@ -35,7 +35,7 @@ pub fn run() -> color_eyre::Result<()> {
     // Step 5: Load role-specific config
     let config_store = ConfigStore::new(dirs.config());
     let default_vreader = Some(crate::core::config::VReaderConfig {
-        master_opml_url: Some("https://hnpwd.github.io/hnpwd.opml".to_string()),
+        master_opml_url: Some("https://raw.githubusercontent.com/villagecityorg/bulletty/main/assets/default_feeds.opml".to_string()),
         api_url: None,
         api_key: None,
         auto_sync: false,

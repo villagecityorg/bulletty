@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>VReader Curated Kid-safe Feeds</title>
+  </head>
+  <body>
+    <outline text="Science">
+      <outline text="Science Daily – Top Stories" xmlUrl="https://www.sciencedaily.com/rss/all.xml" type="rss"/>
+      <outline text="Science News for Students" xmlUrl="https://www.sciencenews.org/feed" type="rss"/>
+      <outline text="Live Science – Top News" xmlUrl="https://www.livescience.com/feeds/all" type="rss"/>
+      <outline text="How Stuff Works – Science" xmlUrl="https://www.howstuffworks.com/science/feed" type="rss"/>
+    </outline>
+    <outline text="Space">
+      <outline text="NASA – What's Up" xmlUrl="https://www.nasa.gov/rss/dyn/breaking_news.rss" type="rss"/>
+      <outline text="NASA – Education News" xmlUrl="https://www.nasa.gov/rss/dyn/educationnews.rss" type="rss"/>
+      <outline text="Space.com" xmlUrl="https://www.space.com/feeds/all" type="rss"/>
+    </outline>
+    <outline text="Nature">
+      <outline text="National Geographic – Animals" xmlUrl="https://www.nationalgeographic.com/animals/feed/" type="rss"/>
+      <outline text="National Geographic – Science" xmlUrl="https://www.nationalgeographic.com/science/feed/" type="rss"/>
+      <outline text="Ocean Finds" xmlUrl="https://ocean.si.edu/rss" type="rss"/>
+    </outline>
+    <outline text="History">
+      <outline text="Smithsonian – History" xmlUrl="https://www.smithsonianmag.com/history/feed/" type="rss"/>
+      <outline text="Smithsonian – Science &amp; Nature" xmlUrl="https://www.smithsonianmag.com/science-nature/feed/" type="rss"/>
+      <outline text="History.com – This Day in History" xmlUrl="https://www.history.com/feeds/rss" type="rss"/>
+      <outline text="Mental Floss – Amazing Facts" xmlUrl="https://www.mentalfloss.com/feed" type="rss"/>
+    </outline>
+    <outline text="World">
+      <outline text="BBC Newsround" xmlUrl="https://feeds.bbci.co.uk/newsround/rss.xml" type="rss"/>
+      <outline text="DOGOnews – Current Events" xmlUrl="https://www.dogonews.com/rss.feeds" type="rss"/>
+    </outline>
+    <outline text="Technology">
+      <outline text="Smithsonian – Innovation" xmlUrl="https://www.smithsonianmag.com/innovation/feed/" type="rss"/>
+      <outline text="Wired – Science" xmlUrl="https://www.wired.com/feed/tag/science/latest/rss" type="rss"/>
+    </outline>
+    <outline text="Arts">
+      <outline text="Smithsonian – Arts &amp; Culture" xmlUrl="https://www.smithsonianmag.com/arts-culture/feed/" type="rss"/>
+      <outline text="The Marginalian" xmlUrl="https://www.themarginalian.org/feed/" type="rss"/>
+    </outline>
+  </body>
+</opml>

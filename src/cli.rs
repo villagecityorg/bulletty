@@ -82,6 +82,18 @@ pub enum Commands {
         #[command(subcommand)]
         cmd: UserCommands,
     },
+    /// Claim an invite code and register with the API server
+    Register {
+        /// Invite code from the operator
+        #[arg(long)]
+        code: String,
+        /// API server base URL, e.g. "https://vreader.chatek.co/api"
+        #[arg(long)]
+        server: String,
+        /// Display name for this user
+        #[arg(long)]
+        name: Option<String>,
+    },
     /// Onboard this VReader as a vchat.email agent
     VChatOnboard {
         /// Agent template: reader, researcher, auditor, secretary
@@ -178,6 +190,9 @@ pub fn run_main_cli(
         Some(Commands::User { cmd }) => command_user(cmd, config),
         Some(Commands::Sync { push, pull, url, api_key }) => {
             command_sync(*push, *pull, url.as_deref(), api_key.as_deref(), config, &config.datapath)
+        }
+        Some(Commands::Register { code, server, name }) => {
+            command_register(code, server, name.as_deref(), config, config_store)
         }
         Some(Commands::VChatOnboard { template, steward, name }) => {
             command_vchat_onboard(template, steward, name.as_deref(), dirs, config)
@@ -378,6 +393,71 @@ fn command_export(
     let library = FeedLibrary::new(data_dir);
     opml::save_opml(&library.feedcategories, opml_file)?;
     println!("Exported feeds to: {opml_file}");
+    Ok(())
+}
+
+// ─── Register command ──────────────────────────────────────────────────
+
+fn command_register(
+    code: &str,
+    server: &str,
+    name: Option<&str>,
+    config: &mut Config,
+    config_store: &ConfigStore,
+) -> color_eyre::Result<()> {
+    let name = name.unwrap_or("VReader User");
+    let base = server.trim_end_matches('/');
+
+    let body = serde_json::json!({
+        "invite_code": code,
+        "name": name,
+    });
+
+    println!("📡 Registering with {}/v1/register ...", base);
+
+    let url = format!("{}/v1/register", base);
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .map_err(|e| color_eyre::eyre::eyre!("Failed to reach server: {}", e))?;
+
+    let status = resp.status();
+    let json: serde_json::Value = resp.json()?;
+
+    if !status.is_success() {
+        let err = json["error"].as_str().unwrap_or("Unknown error");
+        return Err(color_eyre::eyre::eyre!("Registration failed ({}): {}", status.as_u16(), err));
+    }
+
+    let token = json["token"].as_str().ok_or_else(|| {
+        color_eyre::eyre::eyre!("Server didn't return a token")
+    })?;
+    let role = json["role"].as_str().unwrap_or("admin");
+
+    // Save to config
+    config.vreader = Some(crate::core::config::VReaderConfig {
+        api_url: Some(base.to_string()),
+        api_key: Some(token.to_string()),
+        master_opml_url: Some(format!("{}/v1/opml", base)),
+        auto_sync: true,
+    });
+
+    // Also set role from what the server assigned
+    if let Ok(parsed_role) = role.parse::<VReaderRole>() {
+        config.role = parsed_role;
+    }
+
+    config_store.save(config)?;
+
+    println!();
+    println!("✅ Registered as '{}' (role: {})", name, role);
+    println!("   API key saved to config");
+    println!();
+    println!("   Run `vreader sync --pull` to download feeds,");
+    println!("   or just launch the TUI to auto-sync on startup.");
+
     Ok(())
 }
 

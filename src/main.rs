@@ -89,36 +89,44 @@ pub fn run() -> color_eyre::Result<()> {
             config.hooks = None;
         }
 
-        // First-run auto-import: if operator with empty library and a master OPML URL
-        if config.role == VReaderRole::Operator {
+        // First-run auto-import: pull feeds from configured server or master OPML URL
+        if let Some(ref vcc) = config.vreader {
             let library = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
-            if library.is_empty()
-                && let Some(ref vcc) = config.vreader
-                    && let Some(ref opml_url) = vcc.master_opml_url {
-                        tracing::info!("First run detected — importing feeds from {}", opml_url);
-                        println!("📡 First run — importing feeds from {}", opml_url);
-                        let client = reqwest::blocking::Client::new();
-                        match client.get(opml_url).send() {
-                            Ok(resp) => {
-                                if let Ok(opml_content) = resp.text() {
-                                    let tmp = std::path::PathBuf::from("./_first_run.opml");
-                                    if std::fs::write(&tmp, &opml_content).is_ok() {
-                                        if let Ok(feeds) = crate::core::library::data::opml::get_opml_feeds(
-                                            &tmp.to_string_lossy()
-                                        ) {
-                                            let mut lib = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
-                                            for feed in &feeds {
-                                                let _ = lib.add_feed_from_url(&feed.url, &feed.category);
+            if library.is_empty() {
+                // Prefer api_url for registered users, fall back to master_opml_url
+                let url = vcc.api_url.as_deref()
+                    .map(|u| format!("{}/v1/opml", u.trim_end_matches('/')))
+                    .or_else(|| vcc.master_opml_url.clone());
+
+                if let Some(ref opml_url) = url {
+                    tracing::info!("First run — importing feeds from {}", opml_url);
+                    println!("📡 First run — importing feeds...");
+                    let client = reqwest::blocking::Client::new();
+                    match client.get(opml_url).send() {
+                        Ok(resp) => {
+                            if let Ok(opml_content) = resp.text() {
+                                let tmp = std::path::PathBuf::from("./_first_run.opml");
+                                if std::fs::write(&tmp, &opml_content).is_ok() {
+                                    if let Ok(feeds) = crate::core::library::data::opml::get_opml_feeds(
+                                        &tmp.to_string_lossy()
+                                    ) {
+                                        let mut lib = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
+                                        let mut imported = 0;
+                                        for feed in &feeds {
+                                            if lib.add_feed_from_url(&feed.url, &feed.category).is_ok() {
+                                                imported += 1;
                                             }
-                                            println!("✅ Imported {} feeds", feeds.len());
                                         }
-                                        let _ = std::fs::remove_file(&tmp);
+                                        println!("✅ Imported {} feeds", imported);
                                     }
+                                    let _ = std::fs::remove_file(&tmp);
                                 }
                             }
-                            Err(e) => tracing::error!("Failed to fetch default OPML: {}", e),
                         }
+                        Err(e) => tracing::error!("Failed to fetch OPML: {}", e),
                     }
+                }
+            }
         }
 
         mainui::run_main_ui(&config)

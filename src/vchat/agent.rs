@@ -1,5 +1,4 @@
 /// vchat.email agent lifecycle — delegates to the external Go binary.
-
 use std::path::Path;
 
 use color_eyre::Result;

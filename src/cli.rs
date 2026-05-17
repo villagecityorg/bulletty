@@ -538,14 +538,14 @@ fn command_vchat_onboard(
     dirs: &Directories,
     _config: &Config,
 ) -> color_eyre::Result<()> {
-    crate::vchat::agent::onboard(&dirs.identity(), steward)
+    crate::vchat::agent::onboard(dirs.identity(), steward)
 }
 
 fn command_vchat_status(
     dirs: &Directories,
     _config: &Config,
 ) -> color_eyre::Result<()> {
-    crate::vchat::agent::status(&dirs.identity())
+    crate::vchat::agent::status(dirs.identity())
 }
 
 fn command_sync(

@@ -6,7 +6,6 @@
 ///
 /// This module checks for the binary, reads identity files it produces,
 /// and delegates lifecycle commands to it.
-
 pub mod agent;
 pub mod identity;
 

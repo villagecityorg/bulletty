@@ -4,12 +4,12 @@ use std::path::Path;
 
 use color_eyre::Result;
 
-/// Run onboarding via the vchat-agent binary, or print instructions.
+/// Run onboarding via the vchat binary, or print instructions.
 pub fn onboard(identity_dir: &Path, steward: &str) -> Result<()> {
     let bin = super::find_vchat_binary();
 
     if let Some(bin_path) = bin {
-        println!("🚀 Running vchat-agent onboarding...");
+        println!("🚀 Running vchat onboarding...");
 
         let status = std::process::Command::new(bin_path)
             .arg("onboard")
@@ -28,7 +28,7 @@ pub fn onboard(identity_dir: &Path, steward: &str) -> Result<()> {
     } else {
         println!();
         println!("╔══════════════════════════════════════════════════════╗");
-        println!("║  vchat-agent not installed                         ║");
+        println!("║  vchat not installed                                    ║");
         println!("╠══════════════════════════════════════════════════════╣");
         println!("║  Run the one-liner installer first:                ║");
         println!("║                                                    ║");

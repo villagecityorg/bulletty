@@ -12,7 +12,7 @@ use tracing::error;
 use crate::{
     app::AppWorkStatus,
     core::{
-        config::VReaderRole,
+        config::{LlmConfig, VReaderRole},
         feed::feedentry::FeedEntry,
         hooks::AppHooks,
         library::feedlibrary::FeedLibrary,
@@ -31,7 +31,7 @@ use crate::{
     },
 };
 
-use super::helpdialog::HelpDialog;
+use super::{helpdialog::HelpDialog, llmdialog::LlmDialog};
 
 #[derive(PartialEq, Eq)]
 enum MainInputState {
@@ -41,6 +41,7 @@ enum MainInputState {
 
 pub struct MainScreen {
     role: VReaderRole,
+    llm_config: Option<LlmConfig>,
     library: Rc<RefCell<FeedLibrary>>,
     feedtreestate: FeedTreeState,
     feedentrystate: FeedEntryState,
@@ -49,9 +50,10 @@ pub struct MainScreen {
 }
 
 impl MainScreen {
-    pub fn new(library: Rc<RefCell<FeedLibrary>>, hooks: Rc<AppHooks>, role: VReaderRole) -> Self {
+    pub fn new(library: Rc<RefCell<FeedLibrary>>, hooks: Rc<AppHooks>, role: VReaderRole, llm_config: Option<LlmConfig>) -> Self {
         Self {
             role,
+            llm_config,
             library,
             feedtreestate: FeedTreeState::new(),
             feedentrystate: FeedEntryState::new(),
@@ -331,6 +333,11 @@ impl AppScreen for MainScreen {
                     Ok(AppScreenEvent::None)
                 }
                 (_, KeyCode::Char('t')) => self.open_theme_selector(),
+                (_, KeyCode::Char('L')) => {
+                    Ok(AppScreenEvent::OpenDialog(Box::new(
+                        LlmDialog::new(self.library.clone(), self.llm_config.as_ref()),
+                    )))
+                }
                 (_, KeyCode::Char('?')) => Ok(AppScreenEvent::OpenDialog(Box::new(
                     HelpDialog::new(self.library.clone(), self.get_full_instructions()),
                 ))),

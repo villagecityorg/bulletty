@@ -10,7 +10,7 @@ use ratatui::{
 
 use crate::{
     core::{
-        config::{Config, VReaderRole},
+        config::{Config, LlmConfig, VReaderRole},
         hooks::AppHooks,
         library::feedlibrary::FeedLibrary,
         ui::{
@@ -64,6 +64,7 @@ fn interpolate_color(fg: u32, bg: u32, t: f32) -> Color {
 pub struct App {
     running: bool,
     role: VReaderRole,
+    llm_config: Option<LlmConfig>,
     library: Rc<RefCell<FeedLibrary>>,
     hooks: Rc<AppHooks>,
     current_state: Option<Box<dyn AppScreen>>,
@@ -77,6 +78,7 @@ impl App {
     pub fn new(config: &Config) -> Self {
         Self {
             role: config.role.clone(),
+            llm_config: config.llm.clone(),
             library: Rc::new(RefCell::new(FeedLibrary::new(&config.datapath))),
             hooks: Rc::new(config.hooks.clone().unwrap_or_default()),
 
@@ -99,6 +101,7 @@ impl App {
             self.library.clone(),
             self.hooks.clone(),
             self.role.clone(),
+            self.llm_config.clone(),
         )));
 
         if self.library.borrow().is_empty() {

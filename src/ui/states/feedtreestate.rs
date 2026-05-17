@@ -84,7 +84,7 @@ impl FeedTreeState {
             .iter()
             .map(|item| {
                 let title = match item {
-                    FeedItemInfo::Category(t) => format!("\u{1F4C1} {t}"),
+                    FeedItemInfo::Category(t) => format!(" ◎ {t}"),
                     FeedItemInfo::Item(t, c, s) => {
                         let unread = self
                             .unread_counts

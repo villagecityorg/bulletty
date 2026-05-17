@@ -84,7 +84,7 @@ impl FeedTreeState {
             .iter()
             .map(|item| {
                 let title = match item {
-                    FeedItemInfo::Category(t) => format!("\u{f07c} {t}"),
+                    FeedItemInfo::Category(t) => format!("\u{1F4C1} {t}"),
                     FeedItemInfo::Item(t, c, s) => {
                         let unread = self
                             .unread_counts
@@ -92,17 +92,17 @@ impl FeedTreeState {
                             .copied()
                             .unwrap_or(0);
                         if unread > 0 {
-                            format!(" \u{f09e}  {t} ({unread})")
+                            format!(" \u{1F4E1}  {t} ({unread})")
                         } else {
-                            format!(" \u{f09e}  {t}")
+                            format!(" \u{1F4E1}  {t}")
                         }
                     }
                     FeedItemInfo::Separator => "".to_string(),
                     FeedItemInfo::ReadLater => {
                         if self.read_later_count > 0 {
-                            format!("\u{f02d} Read Later ({})", self.read_later_count)
+                            format!("\u{1F516} Read Later ({})", self.read_later_count)
                         } else {
-                            "\u{f02d} Read Later".to_string()
+                            "\u{1F516} Read Later".to_string()
                         }
                     }
                 };

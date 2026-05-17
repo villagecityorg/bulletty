@@ -457,9 +457,9 @@ impl AppScreen for MainScreen {
 
     fn get_title(&self) -> String {
         let badge = match self.role {
-            VReaderRole::Operator => "\u{f023}",
-            VReaderRole::Parent => "\u{f007}",
-            VReaderRole::Kid => "\u{f118}",
+            VReaderRole::Operator => "\u{1F512}",
+            VReaderRole::Parent => "\u{1F464}",
+            VReaderRole::Kid => "\u{1F476}",
         };
         format!("{badge} Main")
     }

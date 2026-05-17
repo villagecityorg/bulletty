@@ -24,9 +24,9 @@ use crate::{
 
 fn role_badge(role: &VReaderRole) -> &'static str {
     match role {
-        VReaderRole::Operator => "\u{f023} operator",   // 🔒
-        VReaderRole::Parent => "\u{f007} parent",       // 👤
-        VReaderRole::Kid => "\u{f118} kid",             // 👶
+        VReaderRole::Operator => "\u{1F512} operator",  // 🔒
+        VReaderRole::Parent => "\u{1F464} parent",      // 👤
+        VReaderRole::Kid => "\u{1F476} kid",            // 👶
     }
 }
 
@@ -188,10 +188,10 @@ impl App {
                         if let Some(ref notif) = self.active_notification {
                             let (icon, fg_color) = match notif.priority {
                                 NotificationPriority::High => {
-                                    ("\u{f06a}", theme.base[0x8]) // exclamation circle
+                                    ("\u{26A0}", theme.base[0x8]) // ⚠
                                 }
                                 NotificationPriority::Low => {
-                                    ("\u{f0f3}", theme.base[0x9]) // bell
+                                    ("\u{1F514}", theme.base[0x9]) // 🔔
                                 }
                             };
 

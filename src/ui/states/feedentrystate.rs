@@ -112,7 +112,7 @@ impl FeedEntryState {
 
                 let file_path = entry.filepath.to_str().unwrap_or_default();
                 let read_later_icon = if self.read_later_paths.contains(file_path) {
-                    " \u{f02d}" // read later icon
+                    " \u{1F516}" // 🔖 read later icon
                 } else {
                     ""
                 };
@@ -120,14 +120,14 @@ impl FeedEntryState {
                 // Title
                 if !entry.seen {
                     item_content_lines.push(Line::from(Span::styled(
-                        format!(" \u{f1ea} {}{} \u{e3e3}", entry.title, read_later_icon),
+                        format!(" \u{1F4F0} {}{} \u{2728}", entry.title, read_later_icon),
                         Style::default()
                             .bold()
                             .fg(Color::from_u32(self.theme.base[9])),
                     )));
                 } else {
                     item_content_lines.push(Line::from(Span::styled(
-                        format!(" \u{f1ea} {}{}", entry.title, read_later_icon),
+                        format!(" \u{1F4F0} {}{}", entry.title, read_later_icon),
                         Style::default()
                             .bold()
                             .fg(Color::from_u32(self.theme.base[6])),
@@ -137,7 +137,7 @@ impl FeedEntryState {
                 // Date
                 item_content_lines.push(Line::from(Span::styled(
                     format!(
-                        " \u{f0520} {} | \u{f09e} {}",
+                        " \u{1F4C5} {} | \u{1F4E1} {}",
                         entry.date.with_timezone(&chrono::Local).format("%Y-%m-%d"),
                         entry.author
                     ),

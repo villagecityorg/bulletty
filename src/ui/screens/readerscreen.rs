@@ -186,7 +186,7 @@ impl AppScreen for ReaderScreen {
 
         // Date
         let date = Paragraph::new(format!(
-            "\u{f0520} {} | \u{f09e} {}",
+            "\u{1F4C5} {} | \u{1F4E1} {}",
             current_entry
                 .date
                 .with_timezone(&chrono::Local)

@@ -43,6 +43,8 @@ url = "2.5.8"
 html-escape = "0.2.13"
 astral-tl = "0.7.11"
 serde_json = "1"
+async-nats = "0.39"
+nkeys = "0.4"
 tokio = { version = "1", features = ["full"] }
 vreader-server = { path = "../../crates/server" }
 

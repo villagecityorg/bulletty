@@ -82,6 +82,20 @@ pub enum Commands {
         #[command(subcommand)]
         cmd: UserCommands,
     },
+    /// Onboard this VReader as a vchat.email agent
+    VChatOnboard {
+        /// Agent template: reader, researcher, auditor, secretary
+        #[arg(long, default_value = "reader")]
+        template: String,
+        /// Steward email (the human who owns this agent)
+        #[arg(long)]
+        steward: String,
+        /// Agent name (defaults to hostname)
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Show vchat.email agent status
+    VChatStatus,
     /// Sync feeds with the VReader API server
     Sync {
         /// Push local feeds (OPML export) to the server
@@ -165,6 +179,10 @@ pub fn run_main_cli(
         Some(Commands::Sync { push, pull, url, api_key }) => {
             command_sync(*push, *pull, url.as_deref(), api_key.as_deref(), config, &config.datapath)
         }
+        Some(Commands::VChatOnboard { template, steward, name }) => {
+            command_vchat_onboard(template, steward, name.as_deref(), dirs, config)
+        }
+        Some(Commands::VChatStatus) => command_vchat_status(dirs, config),
         None => Ok(()),
     }
 }
@@ -510,6 +528,95 @@ fn command_user_revoke(user_id: &str, config: &Config) -> color_eyre::Result<()>
 }
 
 // ─── Sync commands ─────────────────────────────────────────────────────
+
+// ─── VChat commands ──────────────────────────────────────────────────
+
+fn vchat_nats_url(config: &Config) -> String {
+    config
+        .vchat
+        .as_ref()
+        .and_then(|v| v.nats_url.clone())
+        .unwrap_or_else(|| "nats://vchat.ruffe-court.ts.net:4223".to_string())
+}
+
+fn command_vchat_onboard(
+    template: &str,
+    steward: &str,
+    name: Option<&str>,
+    dirs: &Directories,
+    config: &Config,
+) -> color_eyre::Result<()> {
+    let nats_url = vchat_nats_url(config);
+    let agent_name = name
+        .or_else(|| config.vchat.as_ref().and_then(|v| v.agent_name.as_deref()))
+        .unwrap_or("VReader")
+        .to_string();
+
+    println!("🚀 Onboarding VReader as vchat.email agent...");
+    println!("  NATS:      {}", nats_url);
+    println!("  Template:  {}", template);
+    println!("  Name:      {}", agent_name);
+    println!("  Steward:   {}", steward);
+    println!("  Identity:  {}", dirs.identity().display());
+
+    // Run async onboarding in a tokio runtime
+    let identity_dir = dirs.identity().to_path_buf();
+    let nats_url_clone = nats_url.clone();
+    let template_clone = template.to_string();
+    let steward_clone = steward.to_string();
+
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(crate::vchat::agent::onboard_vreader(
+        &nats_url_clone,
+        &template_clone,
+        &agent_name,
+        &steward_clone,
+        &identity_dir,
+    ))?;
+
+    Ok(())
+}
+
+fn command_vchat_status(
+    dirs: &Directories,
+    config: &Config,
+) -> color_eyre::Result<()> {
+    let identity_path = dirs.identity().join("agent.nkey");
+
+    println!("vchat.email Agent Status");
+    println!("──────────────────────────────");
+
+    if identity_path.exists() {
+        match crate::vchat::identity::AgentIdentity::load(&identity_path) {
+            Ok(identity) => {
+                println!("  Status:    ✅ Registered");
+                println!("  Agent ID:  {}", identity.public_key());
+            }
+            Err(e) => {
+                println!("  Status:    ⚠ Corrupt identity file");
+                println!("  Error:     {}", e);
+            }
+        }
+    } else {
+        println!("  Status:    ❌ Not registered");
+        println!();
+        println!("  Run: vreader vchat-onboard --steward your@email.com");
+    }
+
+    println!("  Identity:  {}", identity_path.display());
+    println!("  NATS URL:  {}", vchat_nats_url(config));
+
+    if let Some(ref vc) = config.vchat {
+        if let Some(ref name) = vc.agent_name {
+            println!("  Name:      {}", name);
+        }
+        if let Some(ref template) = vc.template {
+            println!("  Template:  {}", template);
+        }
+    }
+
+    Ok(())
+}
 
 fn command_sync(
     push: bool,

@@ -5,6 +5,7 @@ mod dirs;
 pub mod logging;
 pub mod mainui;
 pub mod ui;
+pub mod vchat;
 
 use clap::Parser;
 use color_eyre::eyre::Context;

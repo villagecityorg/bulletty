@@ -3,7 +3,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Margin, Rect},
     style::{Color, Style},
-    widgets::{Paragraph, Wrap},
+    widgets::{Block, Paragraph, Wrap},
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -22,11 +22,29 @@ use crate::{
             notification::{AppNotification, NotificationPriority},
         },
     },
+    ui::tools::styles_ext,
 };
+
+struct SpinnerState {
+    frames: &'static [&'static str],
+    tick: usize,
+}
+
+impl SpinnerState {
+    fn new() -> Self {
+        Self { frames: &["▘", "▝", "▗", "▖"], tick: 0 }
+    }
+    fn advance(&mut self) {
+        self.tick = (self.tick + 1) % self.frames.len();
+    }
+    fn render(&self) -> &'static str {
+        self.frames[self.tick]
+    }
+}
 
 enum LlmDialogState {
     Menu,
-    Loading(String),   // action label: "Smart Pick" or "Daily Digest"
+    Loading(String, SpinnerState),   // action label + animation state
     Result(String),    // LLM response text
     Error(String),     // error message
 }
@@ -64,7 +82,7 @@ impl Dialog for LlmDialog {
     fn get_size(&self) -> Rect {
         match &self.state {
             LlmDialogState::Menu => Rect::new(45, 14, 0, 0),
-            LlmDialogState::Loading(_) => Rect::new(40, 8, 0, 0),
+            LlmDialogState::Loading(_, _) => Rect::new(40, 8, 0, 0),
             LlmDialogState::Result(_) => Rect::new(65, 28, 0, 0),
             LlmDialogState::Error(_) => Rect::new(50, 10, 0, 0),
         }
@@ -86,13 +104,25 @@ impl AppScreen for LlmDialog {
     fn unpause(&mut self) {}
 
     fn render(&mut self, frame: &mut ratatui::Frame, area: Rect) {
-        let layout = Layout::vertical([Constraint::Length(2), Constraint::Fill(1)])
+        // Advance spinner on each render tick
+        if let LlmDialogState::Loading(_, spinner) = &mut self.state {
+            spinner.advance();
+        }
+
+        let theme = self.library.borrow().settings.get_theme().cloned();
+        let theme_ref = theme.as_ref();
+
+        let layout = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)])
             .split(area.inner(Margin::new(2, 1)));
 
-        let title = Paragraph::new(self.get_title())
-            .style(Style::new().fg(Color::LightGreen))
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true });
+        let title_text = self.get_title();
+        let title_block = match theme_ref {
+            Some(th) => styles_ext::input_block(&title_text, true, th),
+            None => Block::bordered().title(title_text).border_style(Style::new().fg(Color::LightGreen)),
+        };
+        frame.render_widget(Paragraph::new(""), layout[0].inner(ratatui::layout::Margin::new(1, 0)));
+        // Render block overlay manually since Paragraph is empty
+        frame.render_widget(title_block, layout[0]);
 
         let content = match &self.state {
             LlmDialogState::Menu => {
@@ -108,8 +138,8 @@ impl AppScreen for LlmDialog {
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: true })
             }
-            LlmDialogState::Loading(label) => {
-                Paragraph::new(format!("\n\n  🤖 Running {label}..."))
+            LlmDialogState::Loading(label, spinner) => {
+                Paragraph::new(format!("\n\n  {} Running {}...", spinner.render(), label))
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: true })
             }
@@ -126,7 +156,7 @@ impl AppScreen for LlmDialog {
             }
         };
 
-        frame.render_widget(title, layout[0]);
+        // layout[0] is the title block (rendered above), layout[1] is content
         frame.render_widget(content, layout[1]);
     }
 
@@ -171,7 +201,7 @@ impl AppScreen for LlmDialog {
     fn get_title(&self) -> String {
         match &self.state {
             LlmDialogState::Menu => "AI Assistant".to_string(),
-            LlmDialogState::Loading(l) => format!("🤖 {l}..."),
+            LlmDialogState::Loading(l, spinner) => format!("{} {l}...", spinner.render()),
             LlmDialogState::Result(_) => "AI Result".to_string(),
             LlmDialogState::Error(_) => "AI Error".to_string(),
         }
@@ -180,7 +210,7 @@ impl AppScreen for LlmDialog {
     fn get_instructions(&self) -> String {
         match &self.state {
             LlmDialogState::Menu => "1: Smart Pick | 2: Digest | 3: Kid-safe | Esc: close",
-            LlmDialogState::Loading(_) => "Waiting for response...",
+            LlmDialogState::Loading(_, _) => "Waiting for response...",
             LlmDialogState::Result(_) => "Press any key to return",
             LlmDialogState::Error(_) => "Press any key to return",
         }
@@ -212,7 +242,7 @@ impl LlmDialog {
             }
         };
 
-        self.state = LlmDialogState::Loading("Smart Pick".to_string());
+        self.state = LlmDialogState::Loading("Smart Pick".to_string(), SpinnerState::new());
 
         // Collect existing feeds from library
         let lib = self.library.borrow();
@@ -248,7 +278,7 @@ impl LlmDialog {
             }
         };
 
-        self.state = LlmDialogState::Loading("Daily Digest".to_string());
+        self.state = LlmDialogState::Loading("Daily Digest".to_string(), SpinnerState::new());
 
         let mut articles: Vec<(String, String, String)> = Vec::new();
         let lib = self.library.borrow();

@@ -28,6 +28,10 @@ pub struct FeedTreeState {
     last_generation: u64,
     unread_counts: HashMap<(String, String), u16>,
     read_later_count: usize,
+    /// Smooth scroll offset: lerps toward 0 on each render.
+    /// Positive = scroll down, negative = scroll up.
+    pub scroll_anim_offset: f32,
+    scroll_anim_velocity: f32,
 }
 
 impl Default for FeedTreeState {
@@ -44,7 +48,30 @@ impl FeedTreeState {
             last_generation: u64::MAX,
             unread_counts: HashMap::new(),
             read_later_count: 0,
+            scroll_anim_offset: 0.0,
+            scroll_anim_velocity: 0.0,
         }
+    }
+
+    /// Tick the scroll animation — call once per frame.
+    /// Applies a spring-like lerp toward zero offset.
+    pub fn tick_scroll(&mut self, dt: f32) {
+        const STIFFNESS: f32 = 12.0;
+        const DAMPING: f32 = 4.0;
+
+        if self.scroll_anim_offset.abs() < 0.5 && self.scroll_anim_velocity.abs() < 0.5 {
+            self.scroll_anim_offset = 0.0;
+            self.scroll_anim_velocity = 0.0;
+            return;
+        }
+
+        // Spring force
+        let force = -STIFFNESS * self.scroll_anim_offset;
+        let damping = -DAMPING * self.scroll_anim_velocity;
+        let acceleration = force + damping;
+
+        self.scroll_anim_velocity += acceleration * dt;
+        self.scroll_anim_offset += self.scroll_anim_velocity * dt;
     }
 
     pub fn update(&mut self, library: &mut FeedLibrary) {
@@ -147,6 +174,9 @@ impl FeedTreeState {
         let selected = self.listatate.selected().unwrap_or(0);
         if selected < self.treeitems.len().saturating_sub(1) {
             self.listatate.select_next();
+            // Animate: pulse scroll offset downward
+            self.scroll_anim_offset -= 3.0;
+            self.scroll_anim_velocity -= 10.0;
 
             if self.is_selected_separator() {
                 self.select_next();
@@ -169,6 +199,9 @@ impl FeedTreeState {
 
         if selected > 0 {
             self.listatate.select_previous();
+            // Animate: pulse scroll offset upward
+            self.scroll_anim_offset += 3.0;
+            self.scroll_anim_velocity += 10.0;
             if self.is_selected_separator() {
                 self.select_previous();
             }

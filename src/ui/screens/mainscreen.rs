@@ -183,6 +183,8 @@ impl AppScreen for MainScreen {
     fn unpause(&mut self) {}
 
     fn render(&mut self, frame: &mut ratatui::Frame, area: Rect) {
+        // Tick scroll animation (~60fps assumed, dt≈0.016)
+        self.feedtreestate.tick_scroll(0.016);
         if self.role != VReaderRole::Kid {
             self.library.borrow_mut().update();
         }

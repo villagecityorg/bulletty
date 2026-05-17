@@ -2,7 +2,7 @@ use color_eyre::eyre::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Margin, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::widgets::{Block, Paragraph, Wrap};
 
 use crate::app::AppWorkStatus;
 
@@ -46,20 +46,22 @@ impl AppScreen for UrlDialog {
     fn unpause(&mut self) {}
 
     fn render(&mut self, frame: &mut ratatui::Frame, area: ratatui::prelude::Rect) {
-        let contentlayout = Layout::vertical([Constraint::Length(2), Constraint::Fill(1)])
+        let contentlayout = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)])
             .split(area.inner(Margin::new(2, 1)));
 
-        let title = Paragraph::new(self.get_title())
-            .style(Style::new().fg(Color::LightRed))
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true });
+        let title_block = Block::bordered()
+            .title(self.get_title())
+            .border_style(Style::new().fg(Color::Rgb(0x33, 0x99, 0xFF)));
+        let title = Paragraph::new("")
+            .alignment(Alignment::Center);
+        frame.render_widget(title.block(title_block), contentlayout[0]);
 
+        let content_block = Block::bordered()
+            .border_style(Style::new().fg(Color::Rgb(0x55, 0x55, 0x55)));
         let content = Paragraph::new(self.url.to_string())
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true });
-
-        frame.render_widget(title, contentlayout[0]);
-        frame.render_widget(content, contentlayout[1]);
+        frame.render_widget(content.block(content_block), contentlayout[1]);
     }
 
     fn handle_event(&mut self, event: Event) -> Result<AppScreenEvent> {

@@ -7,11 +7,77 @@ use std::path::{Path, PathBuf};
 use crate::core::defs::CONFIG_FILE;
 use crate::core::hooks::AppHooks;
 
+/// VReader operational role.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum VReaderRole {
+    Operator,
+    Parent,
+    Kid,
+}
+
+impl Default for VReaderRole {
+    fn default() -> Self {
+        Self::Operator
+    }
+}
+
+impl std::str::FromStr for VReaderRole {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "operator" => Ok(Self::Operator),
+            "parent" | "parents" => Ok(Self::Parent),
+            "kid" | "kids" => Ok(Self::Kid),
+            _ => Err(format!("Invalid role: {s}. Expected: operator, parent, kid")),
+        }
+    }
+}
+
+/// vccread.chatek.co integration settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VccReadConfig {
+    pub master_opml_url: Option<String>,
+    #[serde(default)]
+    pub auto_sync: bool,
+    pub api_key: Option<String>,
+}
+
+/// LLM provider configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmConfig {
+    pub provider: String, // "ollama" | "deepseek"
+    pub api_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
+    #[serde(default)]
+    pub kid_safe_filter: bool,
+}
+
+/// vchat.email agent identity configuration (future).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VChatConfig {
+    pub nats_url: Option<String>,
+    pub agent_name: Option<String>,
+    pub steward: Option<String>,
+    pub template: Option<String>,
+    #[serde(default)]
+    pub auto_sync: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub datapath: PathBuf,
     #[serde(default)]
     pub hooks: Option<AppHooks>,
+    #[serde(default)]
+    pub role: VReaderRole,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vccread: Option<VccReadConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm: Option<LlmConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vchat: Option<VChatConfig>,
 }
 
 pub struct ConfigStore {

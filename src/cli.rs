@@ -4,25 +4,40 @@ use std::path::{Path, PathBuf};
 use clap::{Error, Parser, Subcommand};
 use tracing::{error, info};
 
-use crate::core::config::Config;
-use crate::core::config::ConfigStore;
+use crate::core::config::{Config, ConfigStore, VReaderRole};
 use crate::core::library::data::opml;
 use crate::core::library::feeditem::FeedItem;
 use crate::core::library::feedlibrary::FeedLibrary;
 use crate::dirs::Directories;
 
-#[derive(Parser)]
-#[command(name = "bulletty")]
-#[command(version, about = "Your TUI feed reader", long_about = None)]
+#[derive(Parser, Clone)]
+#[command(name = "vreader")]
+#[command(version, about = "Your TUI feed reader — family edition with roles", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
+
     /// Disable all hooks defined in config
     #[arg(long)]
     pub no_hooks: bool,
+
+    /// Operational role: operator | parent | kid (env: VREADER_ROLE)
+    #[arg(long, env = "VREADER_ROLE")]
+    pub role: Option<String>,
 }
 
-#[derive(Subcommand)]
+impl Cli {
+    /// Resolve role from CLI flag / env var, or return None if unset.
+    /// main.rs handles fallback to config file role.
+    pub fn effective_role(&self) -> VReaderRole {
+        self.role
+            .as_deref()
+            .and_then(|s| s.parse::<VReaderRole>().ok())
+            .unwrap_or(VReaderRole::Operator)
+    }
+}
+
+#[derive(Subcommand, Clone)]
 pub enum Commands {
     /// List all feeds and categories
     List,
@@ -56,9 +71,22 @@ pub enum Commands {
         /// The filepath of the OPML file
         opml_file: String,
     },
+    /// Start or manage the VReader API server
+    Server {
+        #[command(subcommand)]
+        cmd: ServerCommands,
+    },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
+pub enum ServerCommands {
+    /// Start the API server (long-running process)
+    Start,
+    /// Show server config and status
+    Status,
+}
+
+#[derive(Subcommand, Clone)]
 pub enum DirsCommands {
     /// Show or update the library path
     Library {
@@ -87,6 +115,11 @@ pub fn run_main_cli(
         Some(Commands::Dirs { subcmd }) => command_dirs(&cli, subcmd, dirs, config, config_store),
         Some(Commands::Import { opml_file }) => command_import(&cli, opml_file, &config.datapath),
         Some(Commands::Export { opml_file }) => command_export(&cli, opml_file, &config.datapath),
+        // Server commands are dispatched in main.rs — but handle here too for safety
+        Some(Commands::Server { .. }) => {
+            info!("Server command dispatched via CLI (should be handled in main.rs)");
+            Ok(())
+        }
         None => Ok(()),
     }
 }
@@ -197,24 +230,23 @@ fn command_delete(_cli: &Cli, ident: &str, data_dir: &Path) -> color_eyre::Resul
                     if ind >= 1 && ind <= matches_len {
                         let title =
                             format!("{}/{}", &matches[ind - 1].category, &matches[ind - 1].title);
-
                         if confirm_delete(&title)? {
-                            library
-                                .delete_feed(&matches[ind - 1].slug, &matches[ind - 1].category)?;
-                            info!("Feed deleted: {}", &matches[ind - 1].title);
-                            println!("Feed deleted: {}", &matches[ind - 1].title);
+                            library.delete_feed(
+                                &matches[ind - 1].slug,
+                                &matches[ind - 1].category,
+                            )?;
+                            info!("Feed deleted: {title}");
+                            println!("Feed deleted: {title}");
                         } else {
-                            info!("Feed was not deleted: {}", &title);
-                            println!("Feed was not deleted: {}", &title);
+                            info!("Feed was not deleted: {title}");
+                            println!("Feed was not deleted: {title}");
                         }
                     } else {
-                        info!("Invalid input received: {ind}");
-                        println!("Invalid input received: {ind}");
+                        println!("Invalid selection");
                     }
                 }
                 Err(_) => {
-                    info!("Invalid input received: {normalized_input}");
-                    println!("Invalid input received: {normalized_input}");
+                    println!("Invalid selection");
                 }
             }
         }
@@ -231,103 +263,57 @@ fn command_dirs(
     config_store: &ConfigStore,
 ) -> color_eyre::Result<()> {
     match subcmd {
+        Some(DirsCommands::Library { path }) => {
+            if let Some(new_path) = path {
+                config.datapath = new_path.clone();
+                config_store.save(config)?;
+                println!("Updated library path to: {}", config.datapath.display());
+            } else {
+                println!("Library path: {}", config.datapath.display());
+            }
+        }
         Some(DirsCommands::Logs) => {
-            command_show_dir(dirs.log());
-            Ok(())
+            println!("Logs directory: {}", dirs.log().display());
         }
         Some(DirsCommands::LocalConfig) => {
-            command_show_dir(dirs.config());
-            Ok(())
+            println!("Config directory: {}", dirs.config().display());
         }
-        Some(DirsCommands::Library { path }) => command_dirs_library(path, config, config_store),
         None => {
-            println!("bulletty directories\n");
-            println!("\t-> Library: {}", config.datapath.to_string_lossy());
-            println!("\t-> Logs:    {}", dirs.log().to_string_lossy());
-            println!("\t-> Local config:    {}", dirs.config().to_string_lossy());
-            println!();
-
-            Ok(())
+            println!("Config directory: {}", dirs.config().display());
+            println!("Library path: {}", config.datapath.display());
+            println!("Logs directory: {}", dirs.log().display());
+            println!("Identity directory: {}", dirs.identity().display());
         }
     }
+
+    Ok(())
 }
 
-fn command_dirs_library(
-    path: &Option<PathBuf>,
-    config: &mut Config,
-    config_store: &ConfigStore,
+fn command_import(
+    _cli: &Cli,
+    opml_file: &str,
+    data_dir: &Path,
 ) -> color_eyre::Result<()> {
-    match path {
-        Some(new_path) => {
-            if !new_path.exists() {
-                println!(
-                    "Error: path '{}' does not exist",
-                    new_path.to_string_lossy()
-                );
-                std::process::exit(1);
-            }
-
-            if !new_path.is_dir() {
-                println!(
-                    "Error: path '{}' is not a directory",
-                    new_path.to_string_lossy()
-                );
-                std::process::exit(1);
-            }
-
-            let absolute_path = new_path.canonicalize().unwrap_or_else(|e| {
-                println!(
-                    "Error: failed to resolve path '{}': {}",
-                    new_path.to_string_lossy(),
-                    e
-                );
-                std::process::exit(1);
-            });
-
-            config.datapath = absolute_path.clone();
-            config_store.save(config)?;
-            println!(
-                "Library path updated to: {}",
-                absolute_path.to_string_lossy()
-            );
-        }
-        None => {
-            println!("{}", config.datapath.to_string_lossy());
-        }
-    }
-
-    Ok(())
-}
-
-fn command_show_dir(dir: &Path) {
-    println!("{}", dir.to_string_lossy());
-}
-
-fn command_import(_cli: &Cli, opml_file: &str, data_dir: &Path) -> color_eyre::Result<()> {
-    println!("Importing feeds");
+    let feeds = opml::get_opml_feeds(opml_file)?;
     let mut library = FeedLibrary::new(data_dir);
-    let opml_feeds = opml::get_opml_feeds(opml_file)?;
 
-    for feed in opml_feeds {
+    for feed in feeds {
         match library.add_feed_from_url(&feed.url, &feed.category) {
-            Ok(feed) => {
-                info!("Feed added: {}", feed.title);
-                println!("Feed added: {}", feed.title);
-            }
-            Err(err) => {
-                error!("{err}");
-                println!("{err}");
-            }
+            Ok(f) => println!("Imported: {}", f.title),
+            Err(e) => println!("Skipped {}: {}", feed.url, e),
         }
     }
 
     Ok(())
 }
 
-fn command_export(_cli: &Cli, opml_file: &str, data_dir: &Path) -> color_eyre::Result<()> {
+fn command_export(
+    _cli: &Cli,
+    opml_file: &str,
+    data_dir: &Path,
+) -> color_eyre::Result<()> {
     let library = FeedLibrary::new(data_dir);
-
     opml::save_opml(&library.feedcategories, opml_file)?;
-
+    println!("Exported feeds to: {opml_file}");
     Ok(())
 }

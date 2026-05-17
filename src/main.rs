@@ -33,11 +33,18 @@ pub fn run() -> color_eyre::Result<()> {
 
     // Step 5: Load role-specific config
     let config_store = ConfigStore::new(dirs.config());
+    let default_vccread = Some(crate::core::config::VccReadConfig {
+        master_opml_url: Some("https://hnpwd.github.io/hnpwd.opml".to_string()),
+        api_url: None,
+        api_key: None,
+        auto_sync: false,
+    });
+
     let mut config = config_store.get_or_create(|| Config {
         datapath: dirs.default_data().into(),
         hooks: None,
         role: VReaderRole::default(),
-        vccread: None,
+        vccread: default_vccread,
         llm: None,
         vchat: None,
     })?;
@@ -80,6 +87,41 @@ pub fn run() -> color_eyre::Result<()> {
         if config.role == VReaderRole::Kid {
             config.hooks = None;
         }
+
+        // First-run auto-import: if operator with empty library and a master OPML URL
+        if config.role == VReaderRole::Operator {
+            let library = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
+            if library.is_empty() {
+                if let Some(ref vcc) = config.vccread {
+                    if let Some(ref opml_url) = vcc.master_opml_url {
+                        tracing::info!("First run detected — importing feeds from {}", opml_url);
+                        println!("📡 First run — importing feeds from {}", opml_url);
+                        let client = reqwest::blocking::Client::new();
+                        match client.get(opml_url).send() {
+                            Ok(resp) => {
+                                if let Ok(opml_content) = resp.text() {
+                                    let tmp = std::path::PathBuf::from("./_first_run.opml");
+                                    if std::fs::write(&tmp, &opml_content).is_ok() {
+                                        if let Ok(feeds) = crate::core::library::data::opml::get_opml_feeds(
+                                            &tmp.to_string_lossy()
+                                        ) {
+                                            let mut lib = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
+                                            for feed in &feeds {
+                                                let _ = lib.add_feed_from_url(&feed.url, &feed.category);
+                                            }
+                                            println!("✅ Imported {} feeds", feeds.len());
+                                        }
+                                        let _ = std::fs::remove_file(&tmp);
+                                    }
+                                }
+                            }
+                            Err(e) => tracing::error!("Failed to fetch default OPML: {}", e),
+                        }
+                    }
+                }
+            }
+        }
+
         mainui::run_main_ui(&config)
     } else {
         // CLI command mode — pass the original cli (command still owned)

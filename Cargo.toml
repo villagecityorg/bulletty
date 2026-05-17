@@ -17,7 +17,7 @@ color-eyre = "0.6.5"
 etcetera = "0.11.0"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = [ "derive" ] }
-reqwest = { version = "0.13.2", features = [ "blocking" ] }
+reqwest = { version = "0.13.2", features = [ "blocking", "json" ] }
 clap = { version = "4.5.60", features = [ "derive", "env" ] }
 roxmltree = "0.21.1"
 openssl = { version = "0.10", features = [ "vendored" ] }
@@ -42,6 +42,7 @@ syntect = { version = "5.3.0" }
 url = "2.5.8"
 html-escape = "0.2.13"
 astral-tl = "0.7.11"
+serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 vreader-server = { path = "../../crates/server" }
 

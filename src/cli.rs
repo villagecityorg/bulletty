@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use clap::{Error, Parser, Subcommand};
+use serde_json;
 use tracing::{error, info};
 
 use crate::core::config::{Config, ConfigStore, VReaderRole};
@@ -76,6 +77,26 @@ pub enum Commands {
         #[command(subcommand)]
         cmd: ServerCommands,
     },
+    /// Manage users and invite keys (operator only)
+    User {
+        #[command(subcommand)]
+        cmd: UserCommands,
+    },
+    /// Sync feeds with the VReader API server
+    Sync {
+        /// Push local feeds (OPML export) to the server
+        #[arg(long)]
+        push: bool,
+        /// Pull feeds (OPML import) from the server
+        #[arg(long)]
+        pull: bool,
+        /// API server base URL (overrides config)
+        #[arg(long)]
+        url: Option<String>,
+        /// Admin API key (overrides config)
+        #[arg(long)]
+        api_key: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Clone)]
@@ -84,6 +105,26 @@ pub enum ServerCommands {
     Start,
     /// Show server config and status
     Status,
+}
+
+#[derive(Subcommand, Clone)]
+pub enum UserCommands {
+    /// Generate an invite code for a new user (registers it on the server)
+    Invite {
+        /// Role for the new user: admin or kid
+        #[arg(long, default_value = "admin")]
+        role: String,
+        /// Days until the invite expires
+        #[arg(long, default_value_t = 30)]
+        days: u32,
+    },
+    /// List registered users from the server
+    List,
+    /// Revoke a user's access
+    Revoke {
+        /// The user ID to revoke
+        id: String,
+    },
 }
 
 #[derive(Subcommand, Clone)]
@@ -119,6 +160,10 @@ pub fn run_main_cli(
         Some(Commands::Server { .. }) => {
             info!("Server command dispatched via CLI (should be handled in main.rs)");
             Ok(())
+        }
+        Some(Commands::User { cmd }) => command_user(cmd, config),
+        Some(Commands::Sync { push, pull, url, api_key }) => {
+            command_sync(*push, *pull, url.as_deref(), api_key.as_deref(), config, &config.datapath)
         }
         None => Ok(()),
     }
@@ -315,5 +360,231 @@ fn command_export(
     let library = FeedLibrary::new(data_dir);
     opml::save_opml(&library.feedcategories, opml_file)?;
     println!("Exported feeds to: {opml_file}");
+    Ok(())
+}
+
+// ─── User commands ─────────────────────────────────────────────────────
+
+fn command_user(cmd: &UserCommands, config: &Config) -> color_eyre::Result<()> {
+    match cmd {
+        UserCommands::Invite { role, days } => command_user_invite(role, *days, config),
+        UserCommands::List => command_user_list(config),
+        UserCommands::Revoke { id } => command_user_revoke(id, config),
+    }
+}
+
+fn api_base(config: &Config) -> color_eyre::Result<String> {
+    config
+        .vccread
+        .as_ref()
+        .and_then(|v| v.api_url.as_deref())
+        .map(|s| s.trim_end_matches('/').to_string())
+        .or_else(|| {
+            // Derive from master_opml_url if api_url not set
+            config.vccread.as_ref().and_then(|v| {
+                v.master_opml_url.as_deref().and_then(|url| {
+                    if let Some(pos) = url.find("/opml") {
+                        Some(url[..pos].to_string())
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
+        .ok_or_else(|| color_eyre::eyre::eyre!(
+            "API URL not configured. Set [vccread] api_url in config or use --url flag with sync command."
+        ))
+}
+
+fn api_key(config: &Config) -> Option<String> {
+    config.vccread.as_ref().and_then(|v| v.api_key.clone())
+}
+
+fn api_post(path: &str, body: &serde_json::Value, api_url: &str, key: &str) -> color_eyre::Result<serde_json::Value> {
+    let url = format!("{}{}", api_url, path);
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", key))
+        .json(body)
+        .send()?;
+
+    let status = resp.status();
+    let json: serde_json::Value = resp.json()?;
+
+    if !status.is_success() {
+        let err_msg = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+        return Err(color_eyre::eyre::eyre!("API error ({}): {}", status.as_u16(), err_msg));
+    }
+    Ok(json)
+}
+
+fn api_get(path: &str, api_url: &str, key: &str) -> color_eyre::Result<serde_json::Value> {
+    let url = format!("{}{}", api_url, path);
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", key))
+        .send()?;
+
+    let status = resp.status();
+    let json: serde_json::Value = resp.json()?;
+
+    if !status.is_success() {
+        let err_msg = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+        return Err(color_eyre::eyre::eyre!("API error ({}): {}", status.as_u16(), err_msg));
+    }
+    Ok(json)
+}
+
+fn command_user_invite(role: &str, days: u32, config: &Config) -> color_eyre::Result<()> {
+    let base = api_base(config)?;
+    let key = api_key(config).ok_or_else(|| {
+        color_eyre::eyre::eyre!("API key not configured. Set [vccread] api_key in config.")
+    })?;
+
+    let body = serde_json::json!({
+        "role": role,
+        "expires_in_days": days,
+    });
+
+    let resp = api_post("/v1/invites", &body, &base, &key)?;
+
+    let code = resp["code"].as_str().unwrap_or("?");
+    let expires = resp["expires_at"].as_str().unwrap_or("?");
+
+    println!("\n═══════════════════════════════════════════");
+    println!("  Invite Code Generated");
+    println!("═══════════════════════════════════════════");
+    println!("  Code:    {}", code);
+    println!("  Role:    {}", role);
+    println!("  Expires: {}", expires);
+    println!();
+    println!("  Share this code with the new user.");
+    println!("  They can register at the VReader client.");
+    println!("═══════════════════════════════════════════\n");
+
+    Ok(())
+}
+
+fn command_user_list(config: &Config) -> color_eyre::Result<()> {
+    let base = api_base(config)?;
+    let key = api_key(config).ok_or_else(|| {
+        color_eyre::eyre::eyre!("API key not configured. Set [vccread] api_key in config.")
+    })?;
+
+    let resp = api_get("/v1/users", &base, &key)?;
+
+    let users = resp.as_array().ok_or_else(|| {
+        color_eyre::eyre::eyre!("Unexpected response format")
+    })?;
+
+    if users.is_empty() {
+        println!("No registered users.");
+        return Ok(());
+    }
+
+    println!("\nRegistered Users:");
+    println!("───────────────────────────────────────────────");
+    for user in users {
+        let id = user["id"].as_str().unwrap_or("?");
+        let name = user["name"].as_str().unwrap_or("?");
+        let role = user["role"].as_str().unwrap_or("?");
+        let active = user["active"].as_bool().unwrap_or(false);
+        let created = user["created_at"].as_str().unwrap_or("?");
+        println!("  {} ({}): {} — {} — created {}", id, role, name, if active { "active" } else { "revoked" }, created);
+    }
+    println!();
+
+    Ok(())
+}
+
+fn command_user_revoke(user_id: &str, config: &Config) -> color_eyre::Result<()> {
+    let base = api_base(config)?;
+    let key = api_key(config).ok_or_else(|| {
+        color_eyre::eyre::eyre!("API key not configured. Set [vccread] api_key in config.")
+    })?;
+
+    let body = serde_json::json!({});
+    let path = format!("/v1/users/{}/revoke", user_id);
+    let resp = api_post(&path, &body, &base, &key)?;
+
+    println!("User {} revoked successfully.", resp["user_id"].as_str().unwrap_or(user_id));
+    Ok(())
+}
+
+// ─── Sync commands ─────────────────────────────────────────────────────
+
+fn command_sync(
+    push: bool,
+    pull: bool,
+    cli_url: Option<&str>,
+    cli_key: Option<&str>,
+    config: &Config,
+    data_dir: &Path,
+) -> color_eyre::Result<()> {
+    // Use CLI flag override, then config
+    let base = match cli_url {
+        Some(u) => u.trim_end_matches('/').to_string(),
+        None => api_base(config)?,
+    };
+    let key = match cli_key {
+        Some(k) => k.to_string(),
+        None => api_key(config).ok_or_else(|| {
+            color_eyre::eyre::eyre!("API key not configured. Use --api-key or set [vccread] api_key in config.")
+        })?,
+    };
+
+    if push {
+        // Export local library → POST to server
+        let library = FeedLibrary::new(data_dir);
+
+        // Export feeds to temp OPML file
+        let opml_path = "./_sync_temp.opml";
+        opml::save_opml(&library.feedcategories, opml_path)?;
+        let opml_content = std::fs::read_to_string(opml_path)?;
+        std::fs::remove_file(opml_path)?;
+
+        let body = serde_json::json!({ "opml": opml_content });
+        let resp = api_post("/v1/feeds/sync", &body, &base, &key)?;
+        let count = resp["feeds_imported"].as_u64().unwrap_or(0);
+        println!("Pushed {} feeds to server.", count);
+
+    } else if pull {
+        // GET OPML from server → import locally
+        use crate::core::library::data::opml;
+
+        let url = format!("{}/v1/opml", base);
+        let client = reqwest::blocking::Client::new();
+        // OPML endpoint is public — no auth needed
+        let resp = client.get(&url).send()?;
+        if !resp.status().is_success() {
+            return Err(color_eyre::eyre::eyre!("Server returned {}", resp.status()));
+        }
+        let opml_content = resp.text()?;
+
+        // Write to temp file and import
+        let tmp_path = "./_sync_pull.opml";
+        std::fs::write(tmp_path, &opml_content)?;
+        let feeds = opml::get_opml_feeds(tmp_path)?;
+        std::fs::remove_file(tmp_path)?;
+
+        let mut library = FeedLibrary::new(data_dir);
+        let mut imported = 0;
+        for feed in &feeds {
+            match library.add_feed_from_url(&feed.url, &feed.category) {
+                Ok(f) => {
+                    info!("Synced: {}", f.title);
+                    imported += 1;
+                }
+                Err(e) => info!("Skipped (already exists or error): {}", e),
+            }
+        }
+        println!("Pulled {} feeds from server ({} new).", feeds.len(), imported);
+
+    } else {
+        println!("Use --push or --pull to specify sync direction.");
+    }
+
     Ok(())
 }

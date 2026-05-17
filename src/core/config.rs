@@ -38,6 +38,8 @@ impl std::str::FromStr for VReaderRole {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VccReadConfig {
     pub master_opml_url: Option<String>,
+    /// Base URL for the VReader API, e.g. "https://vreader.chatek.co/api"
+    pub api_url: Option<String>,
     #[serde(default)]
     pub auto_sync: bool,
     pub api_key: Option<String>,

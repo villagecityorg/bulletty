@@ -10,17 +10,14 @@ use crate::core::hooks::AppHooks;
 /// VReader operational role.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum VReaderRole {
+    #[default]
     Operator,
     Parent,
     Kid,
 }
 
-impl Default for VReaderRole {
-    fn default() -> Self {
-        Self::Operator
-    }
-}
 
 impl std::str::FromStr for VReaderRole {
     type Err = String;

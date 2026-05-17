@@ -122,7 +122,7 @@ impl FeedLibrary {
             }
         }
 
-        entries.sort_by(|a, b| b.date.cmp(&a.date));
+        entries.sort_by_key(|b| std::cmp::Reverse(b.date));
         Ok(entries)
     }
 
@@ -132,7 +132,7 @@ impl FeedLibrary {
                 if feed.slug == slug {
                     let mut entries = self.data.load_feed_entries(category, feed)?;
 
-                    entries.sort_by(|a, b| b.date.cmp(&a.date));
+                    entries.sort_by_key(|b| std::cmp::Reverse(b.date));
                     return Ok(entries);
                 }
             }

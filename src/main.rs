@@ -91,9 +91,9 @@ pub fn run() -> color_eyre::Result<()> {
         // First-run auto-import: if operator with empty library and a master OPML URL
         if config.role == VReaderRole::Operator {
             let library = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
-            if library.is_empty() {
-                if let Some(ref vcc) = config.vreader {
-                    if let Some(ref opml_url) = vcc.master_opml_url {
+            if library.is_empty()
+                && let Some(ref vcc) = config.vreader
+                    && let Some(ref opml_url) = vcc.master_opml_url {
                         tracing::info!("First run detected — importing feeds from {}", opml_url);
                         println!("📡 First run — importing feeds from {}", opml_url);
                         let client = reqwest::blocking::Client::new();
@@ -118,8 +118,6 @@ pub fn run() -> color_eyre::Result<()> {
                             Err(e) => tracing::error!("Failed to fetch default OPML: {}", e),
                         }
                     }
-                }
-            }
         }
 
         mainui::run_main_ui(&config)

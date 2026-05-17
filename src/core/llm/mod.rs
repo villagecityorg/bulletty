@@ -1,5 +1,4 @@
 /// LLM integration module — DeepSeek API client, Smart Pick, Daily Digest.
-
 pub mod client;
 pub mod digest;
 pub mod smart_pick;

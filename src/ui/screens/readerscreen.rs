@@ -211,7 +211,7 @@ impl AppScreen for ReaderScreen {
 
         // Content
         let text = tuimarkdown::from_str(&current_entry.text, Some(theme.clone()));
-        let textheight = text.height() as usize;
+        let textheight = text.height();
 
         // This is a workaround to get more or less the amount of wrapped lines, to be used on the
         // scrollbar

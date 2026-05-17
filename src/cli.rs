@@ -383,11 +383,7 @@ fn api_base(config: &Config) -> color_eyre::Result<String> {
             // Derive from master_opml_url if api_url not set
             config.vreader.as_ref().and_then(|v| {
                 v.master_opml_url.as_deref().and_then(|url| {
-                    if let Some(pos) = url.find("/opml") {
-                        Some(url[..pos].to_string())
-                    } else {
-                        None
-                    }
+                    url.find("/opml").map(|pos| url[..pos].to_string())
                 })
             })
         })

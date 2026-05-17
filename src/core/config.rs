@@ -34,9 +34,9 @@ impl std::str::FromStr for VReaderRole {
     }
 }
 
-/// vccread.chatek.co integration settings.
+/// VReader API server settings (vreader.chatek.co).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VccReadConfig {
+pub struct VReaderConfig {
     pub master_opml_url: Option<String>,
     /// Base URL for the VReader API, e.g. "https://vreader.chatek.co/api"
     pub api_url: Option<String>,
@@ -75,7 +75,7 @@ pub struct Config {
     #[serde(default)]
     pub role: VReaderRole,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub vccread: Option<VccReadConfig>,
+    pub vreader: Option<VReaderConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm: Option<LlmConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

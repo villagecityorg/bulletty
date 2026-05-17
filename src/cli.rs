@@ -375,13 +375,13 @@ fn command_user(cmd: &UserCommands, config: &Config) -> color_eyre::Result<()> {
 
 fn api_base(config: &Config) -> color_eyre::Result<String> {
     config
-        .vccread
+        .vreader
         .as_ref()
         .and_then(|v| v.api_url.as_deref())
         .map(|s| s.trim_end_matches('/').to_string())
         .or_else(|| {
             // Derive from master_opml_url if api_url not set
-            config.vccread.as_ref().and_then(|v| {
+            config.vreader.as_ref().and_then(|v| {
                 v.master_opml_url.as_deref().and_then(|url| {
                     if let Some(pos) = url.find("/opml") {
                         Some(url[..pos].to_string())
@@ -392,12 +392,12 @@ fn api_base(config: &Config) -> color_eyre::Result<String> {
             })
         })
         .ok_or_else(|| color_eyre::eyre::eyre!(
-            "API URL not configured. Set [vccread] api_url in config or use --url flag with sync command."
+            "API URL not configured. Set [vreader] api_url in config or use --url flag with sync command."
         ))
 }
 
 fn api_key(config: &Config) -> Option<String> {
-    config.vccread.as_ref().and_then(|v| v.api_key.clone())
+    config.vreader.as_ref().and_then(|v| v.api_key.clone())
 }
 
 fn api_post(path: &str, body: &serde_json::Value, api_url: &str, key: &str) -> color_eyre::Result<serde_json::Value> {
@@ -440,7 +440,7 @@ fn api_get(path: &str, api_url: &str, key: &str) -> color_eyre::Result<serde_jso
 fn command_user_invite(role: &str, days: u32, config: &Config) -> color_eyre::Result<()> {
     let base = api_base(config)?;
     let key = api_key(config).ok_or_else(|| {
-        color_eyre::eyre::eyre!("API key not configured. Set [vccread] api_key in config.")
+        color_eyre::eyre::eyre!("API key not configured. Set [vreader] api_key in config.")
     })?;
 
     let body = serde_json::json!({
@@ -470,7 +470,7 @@ fn command_user_invite(role: &str, days: u32, config: &Config) -> color_eyre::Re
 fn command_user_list(config: &Config) -> color_eyre::Result<()> {
     let base = api_base(config)?;
     let key = api_key(config).ok_or_else(|| {
-        color_eyre::eyre::eyre!("API key not configured. Set [vccread] api_key in config.")
+        color_eyre::eyre::eyre!("API key not configured. Set [vreader] api_key in config.")
     })?;
 
     let resp = api_get("/v1/users", &base, &key)?;
@@ -502,7 +502,7 @@ fn command_user_list(config: &Config) -> color_eyre::Result<()> {
 fn command_user_revoke(user_id: &str, config: &Config) -> color_eyre::Result<()> {
     let base = api_base(config)?;
     let key = api_key(config).ok_or_else(|| {
-        color_eyre::eyre::eyre!("API key not configured. Set [vccread] api_key in config.")
+        color_eyre::eyre::eyre!("API key not configured. Set [vreader] api_key in config.")
     })?;
 
     let body = serde_json::json!({});
@@ -531,7 +531,7 @@ fn command_sync(
     let key = match cli_key {
         Some(k) => k.to_string(),
         None => api_key(config).ok_or_else(|| {
-            color_eyre::eyre::eyre!("API key not configured. Use --api-key or set [vccread] api_key in config.")
+            color_eyre::eyre::eyre!("API key not configured. Use --api-key or set [vreader] api_key in config.")
         })?,
     };
 

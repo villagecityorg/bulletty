@@ -33,7 +33,7 @@ pub fn run() -> color_eyre::Result<()> {
 
     // Step 5: Load role-specific config
     let config_store = ConfigStore::new(dirs.config());
-    let default_vccread = Some(crate::core::config::VccReadConfig {
+    let default_vreader = Some(crate::core::config::VReaderConfig {
         master_opml_url: Some("https://hnpwd.github.io/hnpwd.opml".to_string()),
         api_url: None,
         api_key: None,
@@ -44,7 +44,7 @@ pub fn run() -> color_eyre::Result<()> {
         datapath: dirs.default_data().into(),
         hooks: None,
         role: VReaderRole::default(),
-        vccread: default_vccread,
+        vreader: default_vreader,
         llm: None,
         vchat: None,
     })?;
@@ -92,7 +92,7 @@ pub fn run() -> color_eyre::Result<()> {
         if config.role == VReaderRole::Operator {
             let library = crate::core::library::feedlibrary::FeedLibrary::new(&config.datapath);
             if library.is_empty() {
-                if let Some(ref vcc) = config.vccread {
+                if let Some(ref vcc) = config.vreader {
                     if let Some(ref opml_url) = vcc.master_opml_url {
                         tracing::info!("First run detected — importing feeds from {}", opml_url);
                         println!("📡 First run — importing feeds from {}", opml_url);

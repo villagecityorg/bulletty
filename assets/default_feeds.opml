@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">
   <head>
-    <title>VReader Curated Kid-safe Feeds</title>
+    <title>VReader Default Feeds</title>
   </head>
   <body>
     <outline text="Science">
@@ -37,6 +37,9 @@
     <outline text="Arts">
       <outline text="Smithsonian – Arts &amp; Culture" xmlUrl="https://www.smithsonianmag.com/arts-culture/feed/" type="rss"/>
       <outline text="The Marginalian" xmlUrl="https://www.themarginalian.org/feed/" type="rss"/>
+    </outline>
+    <outline text="Tech News">
+      <outline text="Hacker News" xmlUrl="https://hnrss.org/frontpage" type="rss"/>
     </outline>
   </body>
 </opml>
